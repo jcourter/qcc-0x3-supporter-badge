@@ -2,7 +2,7 @@
 
 <b>Badge Summary</b>
 
-The QCC 0x3 supporter badge contains a Geiger counter circuit, an RDA5807M FM radio receiver, an RGB LED, and an ATmega328P microcontroller to manage it all.  The microcontroller runs at 16MHz has been flashed with an Arduino bootloader and USB to TTL serial dongle has been included, so you can use the Arduino IDE to modify the code and upload it to the badge.  The badge is compatible with an Arduino Uno, so choose that in the IDE as your board type.
+The QCC 0x3 supporter badge contains a Geiger counter circuit, an RDA5807M FM radio receiver, an RGB LED, and an ATmega328P microcontroller to manage it all.  The microcontroller runs at 16MHz, has been flashed with an Arduino bootloader, and a USB to TTL serial dongle has been included, so you can use the Arduino IDE to modify the code and upload it to the badge.  The badge is compatible with an Arduino Uno, so choose that in the IDE as your board type.
 
 NOTE FOR CTF PARTICIPANTS: The badge contains a flag which is not present in the public release of the source code.  If you are planning to work on the CTF badge challenge, I highly recommend you DO NOT re-flash the badge until you've completed it.
 
