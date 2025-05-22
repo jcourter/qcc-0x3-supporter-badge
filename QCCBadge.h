@@ -37,6 +37,9 @@
 #define AVBGRAD_mR           0.010388   // global average background radiation level in mR/h
 #define INFINITY             65534      // if scalerPeriod is set to this value, it will just do a cumulative count forever
 
+#define QCC_MAX_FREQ       8800		// max frequency for radio stations
+#define QCC_MIN_FREQ       7600		// min frequency for radio stations
+
 // Dose units
 #define DOSE_uSV        0   // microSieverts per hour
 #define DOSE_uRH        1   // microRoentgen per hour

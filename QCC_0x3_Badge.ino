@@ -228,11 +228,11 @@ void loop(){
         Serial.println(rssi);
   #endif
       }
-      if(freq>=8800) {
+      if(freq>=QCC_MAX_FREQ) {
 #if (DEBUG)
         Serial.println("Freq out of bounds, forcing seek");
 #endif
-        rx.setFrequency(7600);
+        rx.setFrequency(QCC_MIN_FREQ);
         rx.seek(RDA_SEEK_WRAP,RDA_SEEK_UP,NULL);
       }
       if (ledMode==LED_RSSI_MODE) {
