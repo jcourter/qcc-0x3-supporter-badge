@@ -29,15 +29,14 @@
 #define LED_PULSE_MODE      2           //Make the LED slowly pulse
 #define LED_RANDOM_MODE     3           //The LED will flash random colors
 
-#define LOW_VCC            4200 //mV    // if Vcc < LOW_VCC give low voltage warning
-#define ONE_SEC_MAX          20         // elements in the oneSecond accumulator array
+#define FAST_ARRAY_MAX       50         // elements in the fast accumulator array
 #define DEBOUNCE_MS          50         // buttom debounce period in mS
 #define AVGBGRAD_uSv         0.27       // global average background radiation level in uSv/h
 #define AVBGRAD_uR           10.388     // global average background radiation level in uR/h
 #define AVBGRAD_mR           0.010388   // global average background radiation level in mR/h
 #define INFINITY             65534      // if scalerPeriod is set to this value, it will just do a cumulative count forever
 
-#define QCC_MAX_FREQ       8800		// max frequency for radio stations
+#define QCC_MAX_FREQ       7900		// max frequency for radio stations
 #define QCC_MIN_FREQ       7600		// min frequency for radio stations
 
 // Dose units
@@ -49,10 +48,9 @@
 //                           Menu configuration parameters 
 //----------------------------------------------------------------------------------------------+
 
-// These are DEFAULTS! - only used if menu has not been run
 #define LOGGING_PERIOD    60            // defaults a 60 sec logging period
-#define PRI_RATIO        175.43         // defaults to SBM-20 ratio - used to log dose rate to serial and to calculate the normal background counts for the tube
-#define FULL_SCALE      1000            // max CPM for all 6 bars 
+#define PRI_RATIO        260.00         // J-321 tube mounted on a badge, calibrated in uSv/hr with a natural uranium source in equilibrium with its daughter products against a lab-calibrated meter
+#define RAD_SCALE_MAX_CPS (unsigned long)((PRI_RATIO*5.71)/60.0)            // we'll have full magenta at the equivalent of 5.71uSv/hr, based on OSHA annual exposure limits for radiation workers
 #define DOSE_UNIT       DOSE_uSV        // dose unit to use for logging
 
 //----------------------------------------------------------------------------------------------+
@@ -69,10 +67,10 @@ byte doseUnit;                          // 0 - uSv/H, 1 - uR/H, 2 - mR/H
 volatile unsigned long fastCnt;
 unsigned long logPeriodStart;           // for logging period
 volatile unsigned long logCnt;          // to count and log CPM
-unsigned long fastCountStart;           // counter for LED refresh period
-unsigned long radioPeriodStart;
+unsigned long fastCountStart;           // counter for updating fast moving average
+unsigned long radioPeriodStart;         // interval for checking signal strength
 
-unsigned long oneSecond[ONE_SEC_MAX];   // array holding counts for 1 second running average
+unsigned long fastAverage[FAST_ARRAY_MAX];   // array holding counts for fast running average
 
 boolean cwTransmitEnabled = false;      // enables CW transmitter when set to true
 byte ledMode = 0;                       // current mode for the LED - see defines above

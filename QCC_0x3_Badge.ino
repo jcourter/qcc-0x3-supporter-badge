@@ -45,7 +45,7 @@
 //----------------------------------------------------------------------------------------------+
 //                                     DEBUG Defines
 //----------------------------------------------------------------------------------------------+
-#define DEBUG          true            // if true, shows available memory and other debug info
+#define DEBUG          true            // if true, sends debug info to the serial port
 
 //----------------------------------------------------------------------------------------------+
 //                                      Functions
@@ -86,7 +86,8 @@ void setup(){
   }
 
   rx.setup(); // Starts the FM radio receiver with default parameters
-  rx.setBand(1);  // set the band to the Japanese broadcast band (76-91MHz), which overlaps nicely with the currently unused VHF TV channels 5 and 6 - code in the loop further limits this to 76-88MHz
+  rx.setBand(1);  // set the band to the Japanese broadcast band (76-91MHz), which overlaps nicely with the currently unused VHF TV channels 5 and 6 - code in the loop further limits this to between QCC_MIN_FREQ and QCC_MAX_FREQ
+  rx.setStep(200);  // set tuning step to 200kHz
   rx.setVolume(7);  // Start at the middle of the volume range
   rx.setBass(true);  //Turn on extra bass for the tiny earphones
 
@@ -104,7 +105,7 @@ void setup(){
     globalBgRadAvg = AVBGRAD_mR;        // global average background radiation in mR/h
   }
 
-  fastCountStart = logPeriodStart = radioPeriodStart = millis();;     // start timers
+  fastCountStart = radioPeriodStart = logPeriodStart = millis();;     // start timers
   fastCnt = logCnt = 0;     //initialize counts
 }
 
@@ -113,10 +114,10 @@ void loop(){
   static unsigned long lastFastCnt = 0;
   static boolean blnLogStarted = false;
   static unsigned int lastFrequency = 0;
-  static unsigned int lastRssi = 65535;
+  static byte lastRssi = 0;
   static unsigned int rgbValue = 0;
   static boolean rgbDirection = 0;
-  volatile static byte currentMorseMessage;
+  static byte currentMorseMessage;
 
   if (cwTransmitEnabled) { //only do this if init function has been executed - this happens if someone presses the vol_up and vol_dn buttons simultaneously
     if(!morseSender->continueSending()) {
@@ -146,7 +147,7 @@ void loop(){
       getRGBFromSpectrum(rgbValue, &r, &g, &b);
       if (lastR!=r) {
         lastR=r;
-        analogWrite(RED_LED_PIN,255-r);
+        analogWrite(RED_LED_PIN, 255-r);
       }
       if (lastG!=g) {
         lastG=g;
@@ -154,11 +155,11 @@ void loop(){
       }
       if (lastB!=b) {
         lastB=b;
-        analogWrite(BLUE_LED_PIN,255-b);
+        analogWrite(BLUE_LED_PIN, 255-b);
       }
     }
   }
- 
+
   if (readButton(RADIO_SEEK_BUTTON)== LOW && millis() >= lastButtonTime + 500){ // wait a bit between button pushes
     lastButtonTime = millis();          // reset the period time
     #if (DEBUG)
@@ -169,7 +170,8 @@ void loop(){
       rx.powerUp();
     } else {
       //TODO make this flip between con frequencies
-      rx.seek(RDA_SEEK_WRAP,RDA_SEEK_UP,NULL);
+      //rx.seek(RDA_SEEK_WRAP,RDA_SEEK_UP,NULL);
+      rx.setFrequencyUp();
     }
   }
  
@@ -202,13 +204,13 @@ void loop(){
     rx.setVolumeDown();
   }
 
-  if (millis() >= fastCountStart + 1000/ONE_SEC_MAX){ // handle rapid response output
-    oneSecCount(fastCnt);
+  if (millis() >= fastCountStart + 10000/FAST_ARRAY_MAX){ // update the 10 sec moving average
+    fastAvgCount(fastCnt);
     fastCnt=0;                          // reset counts
     fastCountStart = millis();          // reset the period time
     if (!cwTransmitEnabled) {
       if (ledMode==LED_RADIATION_MODE) {
-        CPStoRGB(getOneSecCount());  //Update the LED color based on the last one second count
+        CPStoRGB(getFastAvgCount());  //Update the LED color based on the fast average count
       }
     }
   }
@@ -217,7 +219,7 @@ void loop(){
     radioPeriodStart=millis();             // reset the period time
     if(!cwTransmitEnabled) {
       unsigned int freq = rx.getRealFrequency();
-      unsigned int rssi = rx.getRssi();
+      byte rssi = (byte)rx.getRssi();
       if (freq!=lastFrequency || rssi!=lastRssi) {
         lastFrequency = freq;
         lastRssi = rssi;
@@ -230,17 +232,17 @@ void loop(){
       }
       if(freq>=QCC_MAX_FREQ) {
 #if (DEBUG)
-        Serial.println("Freq out of bounds, forcing seek");
+        Serial.println("Freq out of bounds");
 #endif
         rx.setFrequency(QCC_MIN_FREQ);
-        rx.seek(RDA_SEEK_WRAP,RDA_SEEK_UP,NULL);
+        //rx.seek(RDA_SEEK_WRAP,RDA_SEEK_UP,NULL);
       }
       if (ledMode==LED_RSSI_MODE) {
         CPStoRGB(rssi);  //Update the LED color based on the signal strength
       } else if (ledMode==LED_RANDOM_MODE) {
-        analogWrite(RED_LED_PIN,rand()%256);
-        analogWrite(GREEN_LED_PIN,rand()%256);
-        analogWrite(BLUE_LED_PIN,rand()%256);
+        analogWrite(RED_LED_PIN,(256-LED_MAX_INTENSITY)+rand()%LED_MAX_INTENSITY);
+        analogWrite(GREEN_LED_PIN,(256-LED_MAX_INTENSITY)+rand()%LED_MAX_INTENSITY);
+        analogWrite(BLUE_LED_PIN,(256-LED_MAX_INTENSITY)+rand()%LED_MAX_INTENSITY);
       }
     }
   }
@@ -263,10 +265,10 @@ void Get_Settings(){ // get settings - the original kit stored these in the EEPR
   logPeriodStart = 0;     // start logging timer
 }
 
-unsigned long getOneSecCount() {
+unsigned long getFastAvgCount() {
   unsigned long tempSum = 0;
-  for (int i = 0; i <= ONE_SEC_MAX-1; i++){ // sum up 1 second counts
-    tempSum = tempSum + oneSecond[i];
+  for (int i = 0; i <= FAST_ARRAY_MAX-1; i++){ // sum up 1 second counts
+    tempSum = tempSum + fastAverage[i];
   }
   return tempSum;
 }
@@ -288,12 +290,12 @@ void logCount(unsigned long lcnt){ // unlike logging sketch, just outputs to ser
   Serial.print(F("\r\n"));
 }
 
-void oneSecCount(unsigned long dcnt) {
-  static byte oneSecondIndex = 0;
+void fastAvgCount(unsigned long dcnt) {
+  static byte fastArrayIndex = 0;
 
-  oneSecond[oneSecondIndex++] = dcnt;
-  if(oneSecondIndex >= ONE_SEC_MAX) {
-    oneSecondIndex = 0;
+  fastAverage[fastArrayIndex++] = dcnt;
+  if(fastArrayIndex >= FAST_ARRAY_MAX) {
+    fastArrayIndex = 0;
   }
 }
 
@@ -321,7 +323,7 @@ static void CPStoRGB(unsigned long counts) {
   unsigned int scaledCounts;
   float normalizedCounts;
 
-  scaleMax = 100;            // we'll have full magenta at this number of counts per second
+  scaleMax = RAD_SCALE_MAX_CPS;   // Full magenta happens at this number of counts per second
 #if (DEBUG)
   //Serial.print("rawcounts:");
   //Serial.print(counts);
@@ -497,7 +499,7 @@ static void serialprint_P(const char *text) {  // print a string from progmem to
     Serial.write(pgm_read_byte(text++));
 }
 
-static void testRGB() {
+static void cycleRGB() {
 //This just runs the RGB LED through the spectrum defined in getRGBFromSpectrum()
   unsigned char r, g, b;
   static unsigned char lastR, lastG, lastB;
