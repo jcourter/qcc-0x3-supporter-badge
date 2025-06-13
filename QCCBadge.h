@@ -22,7 +22,7 @@
 //                                 other defines . . .
 //----------------------------------------------------------------------------------------------+
 #define BGYRM_SPECTRUM    false           // set to true for blue->green->yellow->red->magenta, set to false for green->yellow->red->magenta
-#define LED_MAX_INTENSITY   127         // maximum intensity for the LED
+#define LED_MAX_INTENSITY   255         // maximum intensity for the LED
 
 #define LED_RADIATION_MODE  0           //Show radiation level on the LED
 #define LED_RSSI_MODE       1           //Show signal strength on the LED
@@ -44,12 +44,18 @@
 #define DOSE_uRH        1   // microRoentgen per hour
 #define DOSE_mRH        2   // milliRads per hour
 
+#define USE_OLED        true  // set to true to use an SSD1306 OLED display on the I2C bus
+
+// 0X3C+SA0 - 0x3C or 0x3D
+#define I2C_ADDRESS 0x3C  // I2C address for the SSD1306 display
+
 //----------------------------------------------------------------------------------------------+
 //                           Menu configuration parameters 
 //----------------------------------------------------------------------------------------------+
 
 #define LOGGING_PERIOD    60            // defaults a 60 sec logging period
-#define PRI_RATIO        260.00         // J-321 tube mounted on a badge, calibrated in uSv/hr with a natural uranium source in equilibrium with its daughter products against a lab-calibrated meter
+#define PRI_RATIO        153.80         // J-321 tube mounted on a badge, calibrated in uSv/hr with a natural uranium source in equilibrium with its daughter products against a lab-calibrated meter
+#define DEAD_TIME_uS     2350            // Dead time for the J-321 tube in this circuit, in microseconds
 #define RAD_SCALE_MAX_CPS (unsigned long)((PRI_RATIO*5.71)/60.0)            // we'll have full magenta at the equivalent of 5.71uSv/hr, based on OSHA annual exposure limits for radiation workers
 #define DOSE_UNIT       DOSE_uSV        // dose unit to use for logging
 
@@ -81,6 +87,10 @@ byte TCCR1B_default;                    // stores the value of the TCCR1B regist
 byte OCR1A_default;                     // stores the value of the OCR1A register before we mess with it
 
 RDA5807 rx;                             // FM radio module
+
+#if (USE_OLED)
+SSD1306AsciiWire oled;                  //SSD1306 OLED display
+#endif
 
 MorseSender *morseSender;               // Morse code transmitter
 

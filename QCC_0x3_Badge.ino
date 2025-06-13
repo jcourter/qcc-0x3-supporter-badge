@@ -39,13 +39,17 @@
 #include <EEPROM.h>
 #include <PinChangeInterrupt.h>
 #include <RDA5807.h> 
+#include <avr/wdt.h>
 #include "radioxmit.h"
+#include <Wire.h>
+#include "SSD1306Ascii.h"
+#include "SSD1306AsciiWire.h"
 #include "QCCBadge.h"
 
 //----------------------------------------------------------------------------------------------+
 //                                     DEBUG Defines
 //----------------------------------------------------------------------------------------------+
-#define DEBUG          true            // if true, sends debug info to the serial port
+#define DEBUG          false            // if true, sends debug info to the serial port
 
 //----------------------------------------------------------------------------------------------+
 //                                      Functions
@@ -53,6 +57,12 @@
 
 void setup(){
   float globalBgRadAvg;
+  
+  wdt_disable();
+
+  Wire.begin();
+  Wire.setClock(400000L);
+
   Serial.begin(9600);                   // comspec 96,N,8,1
   attachPinChangeInterrupt(digitalPinToPinChangeInterrupt(GM_TUBE_PIN),GetEvent,FALLING);  // Geiger event on pin 2 triggers interrupt
   pinMode(RED_LED_PIN,OUTPUT);              // setup LED pin
@@ -107,6 +117,10 @@ void setup(){
 
   fastCountStart = radioPeriodStart = logPeriodStart = millis();;     // start timers
   fastCnt = logCnt = 0;     //initialize counts
+
+  oledInit();
+
+  wdt_enable(WDTO_2S);
 }
 
 void loop(){
@@ -208,10 +222,14 @@ void loop(){
     fastAvgCount(fastCnt);
     fastCnt=0;                          // reset counts
     fastCountStart = millis();          // reset the period time
+
+    unsigned long fastAverage=getFastAvgCount()*6;  // convert to counts per minute
+    fastAverage = (float)fastAverage/(1.0-(float)fastAverage*((float)DEAD_TIME_uS/60000000.0));  // compensate for dead time (first converting the dead time to minutes)
     if (!cwTransmitEnabled) {
       if (ledMode==LED_RADIATION_MODE) {
-        CPStoRGB(getFastAvgCount());  //Update the LED color based on the fast average count
+        CPStoRGB(fastAverage/60);  //Update the LED color based on the fast average count in counts per second
       }
+      oledFastCount(fastAverage);
     }
   }
 
@@ -223,6 +241,7 @@ void loop(){
       if (freq!=lastFrequency || rssi!=lastRssi) {
         lastFrequency = freq;
         lastRssi = rssi;
+        oledUpdateFMInfo(freq, rssi);
   #if (DEBUG)
         Serial.print("Tuned to ");
         Serial.print(freq);
@@ -252,6 +271,55 @@ void loop(){
     logCnt = 0;                         // reset log event counter
     logPeriodStart = millis(); // reset log time and display time too
   }
+  wdt_reset();
+}
+
+void oledInit(){
+#if (USE_OLED)
+  oled.begin(&Adafruit128x64, I2C_ADDRESS);
+  oled.setFont(System5x7);
+  oled.clear();
+#endif
+}
+
+void oledFastCount(unsigned long fastAverage) {
+#if (USE_OLED)
+  oled.setRow(1);
+  oled.setCol(1);
+  for (char i = 0;i < 20*fastAverage/200;i++) {
+    //oled.print('█')
+    oled.print('*');
+  }
+  oled.clearToEOL();
+
+  oled.setRow(2);
+  oled.setCol(1);
+  oled.print(fastAverage);
+  oled.print(" counts/min");
+  oled.clearToEOL();
+
+  oled.setRow(4);
+  oled.setCol(1);
+  oled.print((float) fastAverage / doseRatio, 2);
+  oled.print(' ');
+  oledprint_P((const char *)pgm_read_word(&(unit_table[doseUnit])));  // print dose unit (uSv/h, uR/h, or mR/h) to serial
+  oled.clearToEOL();
+#endif
+}
+
+void oledUpdateFMInfo (unsigned int freq, byte rssi) {
+#if (USE_OLED)
+  oled.setRow(7);
+  oled.setCol(1);
+  oled.print((int)freq/100);
+  oled.print('.');
+  oled.print((freq%100)/10);
+  oled.print(F(" MHz     Rssi:"));
+  if(rssi < 10) oled.print(' ');
+  if(rssi < 100) oled.print(' ');
+  oled.print(rssi);
+  oled.clearToEOL();
+#endif
 }
 
 void Get_Settings(){ // get settings - the original kit stored these in the EEPROM but to simplify things for the badge, we'll just use values from QCCBadge.h
@@ -275,19 +343,34 @@ unsigned long getFastAvgCount() {
 
 void logCount(unsigned long lcnt){ // unlike logging sketch, just outputs to serial
   unsigned long logCPM;                 // log CPM
+  unsigned long compensatedCPM;         // CPM after compensating for dead time
   float uSvLogged = 0.0;                // logging CPM converted to "unofficial" uSv
 
   logCPM = float(lcnt) / (float(LoggingPeriod) / 60000);
 
-  uSvLogged = (float)logCPM / doseRatio; // make uSV conversion
+  compensatedCPM = (float)logCPM/(1.0-(float)logCPM*((float)DEAD_TIME_uS/60000000.0));  // compensate for dead time (first converting the dead time to minutes)
+
+  uSvLogged = (float)compensatedCPM / doseRatio; // make uSV conversion
 
   // Print to serial in a format that might be used by Excel
-  Serial.print(logCPM,DEC);
+  //Serial.print(logCPM,DEC);  //write the pre-compensated CPM value
+  //Serial.write(',');    
+  Serial.print(compensatedCPM,DEC);
   Serial.write(',');    
   Serial.print(uSvLogged,4);
   Serial.write(','); // comma delimited
   Serial.print(readVcc()/1000. ,2);   // print as volts with 2 dec. places
   Serial.print(F("\r\n"));
+#if (USE_OLED)
+  oled.setRow(6);
+  oled.setCol(1);
+  oled.print(LoggingPeriod/1000,DEC);
+  oled.print(F("s avg: "));
+  oled.print((float) uSvLogged, 2);
+  oled.write(' ');
+  oledprint_P((const char *)pgm_read_word(&(unit_table[doseUnit])));  // print dose unit (uSv/h, uR/h, or mR/h) to serial
+  oled.clearToEOL();
+#endif
 }
 
 void fastAvgCount(unsigned long dcnt) {
@@ -498,6 +581,16 @@ static void serialprint_P(const char *text) {  // print a string from progmem to
   while (pgm_read_byte(text) != 0x00)
     Serial.write(pgm_read_byte(text++));
 }
+
+#if (USE_OLED)
+static void oledprint_P(const char *text) {  // print a string from progmem to the serial object
+  /* Usage: serialprint_P(pstring) or serialprint_P(pstring_table[5].  If the string 
+   table is stored in progmem and the index is a variable, the syntax is
+   serialprint_P((const char *)pgm_read_word(&(pstring_table[index])))*/
+  while (pgm_read_byte(text) != 0x00)
+    oled.write(pgm_read_byte(text++));
+}
+#endif
 
 static void cycleRGB() {
 //This just runs the RGB LED through the spectrum defined in getRGBFromSpectrum()
