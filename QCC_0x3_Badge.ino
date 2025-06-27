@@ -294,6 +294,8 @@ void oledInit(){
   oled.begin(&Adafruit128x64, I2C_ADDRESS);
   oled.setFont(System5x7);
   oled.clear();
+  oled.setCursor(1,5);
+  oled.print(F("Queen City Con 0x3"));
 #endif
 }
 
@@ -302,22 +304,18 @@ void oledFastCount(unsigned long fastAverage) {
   if (fastAverage==lastFastAverage) return;
   else lastFastAverage=fastAverage;
 #if (USE_OLED)
-  oled.setRow(1);
-  oled.setCol(1);
+  oled.setCursor(1,1);
   for (char i = 0;i < 20*fastAverage/200;i++) {
-    //oled.print('█')
     oled.print('*');
   }
   oled.clearToEOL();
 
-  oled.setRow(2);
-  oled.setCol(1);
+  oled.setCursor(1,2);
   oled.print(fastAverage);
   oled.print(" counts/min");
   oled.clearToEOL();
 
-  oled.setRow(3);
-  oled.setCol(1);
+  oled.setCursor(1,3);
   oled.print((float) fastAverage / doseRatio, 2);
   oled.print(' ');
   oledprint_P((const char *)pgm_read_word(&(unit_table[doseUnit])));  // print dose unit (uSv/h, uR/h, or mR/h) to serial
@@ -327,8 +325,7 @@ void oledFastCount(unsigned long fastAverage) {
 
 void oledUpdateFMInfo (unsigned int freq, byte volume, byte rssi) {
 #if (USE_OLED)
-  oled.setRow(7);
-  oled.setCol(1);
+  oled.setCursor(1,7);
   oled.print((int)freq/100);
   oled.print('.');
   oled.print((freq%100)/10);
@@ -389,8 +386,7 @@ void logCount(unsigned long lcnt){ // unlike logging sketch, just outputs to ser
   Serial.print(readVcc()/1000. ,2);   // print as volts with 2 dec. places
   Serial.print(F("\r\n"));
 #if (USE_OLED)
-  oled.setRow(5);
-  oled.setCol(1);
+  oled.setCursor(1,5);
   if(LoggingPeriod % 3600000 == 0) {  // display the averaging period in hours
     oled.print(LoggingPeriod/3600000,DEC);
     oled.print('h');
