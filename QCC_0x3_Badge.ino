@@ -418,9 +418,6 @@ void fastAvgCount(unsigned long dcnt) {
   }
 }
 
-void dummy_wdt_reset() {
-  wdt_reset();
-}
 unsigned long readVcc() { // SecretVoltmeter from TinkerIt
   unsigned long result;
   // Read 1.1V reference against AVcc
