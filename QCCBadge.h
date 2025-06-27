@@ -38,6 +38,9 @@
 
 #define QCC_MAX_FREQ       7900		// max frequency for radio stations
 #define QCC_MIN_FREQ       7600		// min frequency for radio stations
+#define RADIO_MODE_QCC     0      // QCC mode - locks tuner to 76-79MHz
+#define RADIO_MODE_BCAST   1      // Broadcast mode - sets tuner for normal North America FM broadcast band
+#define RADIO_MODE_ADDR    0x01        //EEPROM address for radio mode setting
 
 // Dose units
 #define DOSE_uSV        0   // microSieverts per hour
@@ -54,7 +57,7 @@
 //----------------------------------------------------------------------------------------------+
 
 #define LOGGING_PERIOD    60            // defaults a 60 sec logging period
-#define PRI_RATIO        153.80         // J-321 tube mounted on a badge, calibrated in uSv/hr with a natural uranium source in equilibrium with its daughter products against a lab-calibrated meter
+#define PRI_RATIO        153.80         // J-321 tube conversion ratio - 153.8 CPM/uSv/h
 #define DEAD_TIME_uS     2350            // Dead time for the J-321 tube in this circuit, in microseconds
 #define RAD_SCALE_MAX_CPS (unsigned long)((PRI_RATIO*5.71)/60.0)            // we'll have full magenta at the equivalent of 5.71uSv/hr, based on OSHA annual exposure limits for radiation workers
 #define DOSE_UNIT       DOSE_uSV        // dose unit to use for logging
@@ -80,6 +83,7 @@ unsigned long fastAverage[FAST_ARRAY_MAX];   // array holding counts for fast ru
 
 boolean cwTransmitEnabled = false;      // enables CW transmitter when set to true
 byte ledMode = 0;                       // current mode for the LED - see defines above
+byte radioMode = 0;                       // current mode for the radio - see defines above
 static byte lastR, lastG, lastB = {0};  // stores the current RGB values for the LED
 
 byte TCCR1A_default;                    // stores the value of the TCCR1A register before we mess with it
