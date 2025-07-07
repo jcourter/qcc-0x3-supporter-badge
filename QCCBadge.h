@@ -30,6 +30,9 @@
 #define LED_RANDOM_MODE     3           //The LED will flash random colors
 
 #define FAST_ARRAY_MAX       50         // elements in the fast accumulator array
+#define FAST_AVG_PERIOD      10000      // milliseconds of history to store in the fast accumulator for an average
+#define SLOW_ARRAY_MAX       12         // elements in the slow accumulator array
+#define SLOW_AVG_PERIOD      60000      // milliseconds of history to store in the slow accumulator for an average
 #define DEBOUNCE_MS          50         // buttom debounce period in mS
 #define AVGBGRAD_uSv         0.27       // global average background radiation level in uSv/h
 #define AVBGRAD_uR           10.388     // global average background radiation level in uR/h
@@ -58,7 +61,7 @@
 
 #define LOGGING_PERIOD    60            // defaults a 60 sec logging period
 #define PRI_RATIO        153.80         // J-321 tube conversion ratio - 153.8 CPM/uSv/h
-#define DEAD_TIME_uS     2350            // Dead time for the J-321 tube in this circuit, in microseconds
+#define DEAD_TIME_uS     800            // Dead time for the J-321 tube in this circuit, in microseconds
 #define RAD_SCALE_MAX_CPS (unsigned long)((PRI_RATIO*5.71)/60.0)            // we'll have full magenta at the equivalent of 5.71uSv/hr, based on OSHA annual exposure limits for radiation workers
 #define DOSE_UNIT       DOSE_uSV        // dose unit to use for logging
 
@@ -74,17 +77,20 @@ byte doseUnit;                          // 0 - uSv/H, 1 - uR/H, 2 - mR/H
 
 // variables for counting periods and counts . . .
 volatile unsigned long fastCnt;
+volatile unsigned long slowCnt;
 unsigned long logPeriodStart;           // for logging period
 volatile unsigned long logCnt;          // to count and log CPM
 unsigned long fastCountStart;           // counter for updating fast moving average
+unsigned long slowCountStart;           // counter for updating slow moving average
 unsigned long radioPeriodStart;         // interval for checking signal strength
 
-unsigned long fastAverage[FAST_ARRAY_MAX];   // array holding counts for fast running average
+unsigned int fastAverage[FAST_ARRAY_MAX];   // array holding counts for fast running average
+unsigned int slowAverage[SLOW_ARRAY_MAX];   // array holding counts for fast running average
 
 boolean cwTransmitEnabled = false;      // enables CW transmitter when set to true
 byte ledMode = 0;                       // current mode for the LED - see defines above
 byte radioMode = 0;                       // current mode for the radio - see defines above
-static byte lastR, lastG, lastB = {0};  // stores the current RGB values for the LED
+byte lastR = 0 , lastG = 0, lastB = 0;  // stores the current RGB values for the LED
 
 byte TCCR1A_default;                    // stores the value of the TCCR1A register before we mess with it
 byte TCCR1B_default;                    // stores the value of the TCCR1B register before we mess with it

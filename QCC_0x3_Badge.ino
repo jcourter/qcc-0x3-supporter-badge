@@ -123,8 +123,8 @@ void setup(){
     globalBgRadAvg = AVBGRAD_mR;        // global average background radiation in mR/h
   }
 
-  fastCountStart = radioPeriodStart = logPeriodStart = millis();;     // start timers
-  fastCnt = logCnt = 0;     //initialize counts
+  fastCountStart = slowCountStart = radioPeriodStart = logPeriodStart = millis();;     // start timers
+  fastCnt = slowCnt = logCnt = 0;     //initialize counts
 
 #if (USE_OLED)
   oledInit();
@@ -136,6 +136,7 @@ void setup(){
 void loop(){
   static unsigned long lastButtonTime;  // counter for pressing the button too quickly
   static unsigned long lastFastCnt = 0;
+  static unsigned long lastSlowCnt = 0;
   static boolean blnLogStarted = false;
   static unsigned int lastFrequency = 0;
   static byte lastRssi = 0;
@@ -227,12 +228,12 @@ void loop(){
     rx.setVolumeDown();
   }
 
-  if (millis() >= fastCountStart + 10000/FAST_ARRAY_MAX){ // update the 10 sec moving average
+  if (millis() >= fastCountStart + FAST_AVG_PERIOD/FAST_ARRAY_MAX){ // update the fast moving average
     fastAvgCount(fastCnt);
     fastCnt=0;                          // reset counts
     fastCountStart = millis();          // reset the period time
 
-    unsigned long fastAverage=getFastAvgCount()*6;  // convert to counts per minute
+    unsigned long fastAverage=getFastAvgCount()*((unsigned long)60000/(unsigned long)FAST_AVG_PERIOD);  // convert to counts per minute
     fastAverage = (float)fastAverage/(1.0-(float)fastAverage*((float)DEAD_TIME_uS/60000000.0));  // compensate for dead time (first converting the dead time to minutes)
     if (!cwTransmitEnabled) {
       if (ledMode==LED_RADIATION_MODE) {
@@ -242,6 +243,18 @@ void loop(){
     }
   }
 
+  if (millis() >= slowCountStart + SLOW_AVG_PERIOD/SLOW_ARRAY_MAX){ // update the slow moving average
+    slowAvgCount(slowCnt);
+    slowCnt=0;                          // reset counts
+    slowCountStart = millis();          // reset the period time
+    if (millis() >= SLOW_AVG_PERIOD) { // wait until we have the buckets filled to give an accurate average before displaying
+      unsigned long slowAverage=getSlowAvgCount()*((unsigned long)60000/(unsigned long)SLOW_AVG_PERIOD);  // convert to counts per minute
+      slowAverage = (float)slowAverage/(1.0-(float)slowAverage*((float)DEAD_TIME_uS/60000000.0));  // compensate for dead time (first converting the dead time to minutes)
+      if (!cwTransmitEnabled) {
+        oledSlowCount(slowAverage);
+      }
+    }
+  }
   if (millis() >= radioPeriodStart + 333) { //query the radio module every 100ms
     radioPeriodStart=millis();             // reset the period time
     if(!cwTransmitEnabled) {
@@ -323,6 +336,30 @@ void oledFastCount(unsigned long fastAverage) {
 #endif
 }
 
+void oledSlowCount(unsigned long slowAverage) {
+  static unsigned long lastSlowAverage = ULONG_MAX;
+  if (slowAverage==lastSlowAverage) return;
+  else lastSlowAverage=slowAverage;
+#if (USE_OLED)
+  oled.setCursor(1,5);
+  if(SLOW_AVG_PERIOD % 3600000 == 0) {  // display the averaging period in hours
+    oled.print(SLOW_AVG_PERIOD/3600000,DEC);
+    oled.print('h');
+  }else if(SLOW_AVG_PERIOD % 60000 == 0) {
+    oled.print(SLOW_AVG_PERIOD/60000,DEC); // display the averaging period in minutes
+    oled.print('m');
+  } else { // display the averaging period in seconds
+    oled.print(SLOW_AVG_PERIOD/1000,DEC);
+    oled.print('s');
+  }
+  oled.print(F(" avg: "));
+  oled.print((float) slowAverage / doseRatio, 2);
+  oled.write(' ');
+  oledprint_P((const char *)pgm_read_word(&(unit_table[doseUnit])));  // print dose unit (uSv/h, uR/h, or mR/h) to serial
+  oled.clearToEOL();
+#endif
+}
+
 void oledUpdateFMInfo (unsigned int freq, byte volume, byte rssi) {
 #if (USE_OLED)
   oled.setCursor(1,7);
@@ -359,8 +396,16 @@ void Get_Settings(){ // get settings - the original kit stored these in the EEPR
 
 unsigned long getFastAvgCount() {
   unsigned long tempSum = 0;
-  for (int i = 0; i <= FAST_ARRAY_MAX-1; i++){ // sum up 1 second counts
-    tempSum = tempSum + fastAverage[i];
+  for (int i = 0; i <= FAST_ARRAY_MAX-1; i++){ // sum up fast average counts
+    tempSum = tempSum + (unsigned long)fastAverage[i];
+  }
+  return tempSum;
+}
+
+unsigned long getSlowAvgCount() {
+  unsigned long tempSum = 0;
+  for (int i = 0; i <= SLOW_ARRAY_MAX-1; i++){ // sum up slow average counts
+    tempSum = tempSum + (unsigned long)slowAverage[i];
   }
   return tempSum;
 }
@@ -385,24 +430,6 @@ void logCount(unsigned long lcnt){ // unlike logging sketch, just outputs to ser
   Serial.write(','); // comma delimited
   Serial.print(readVcc()/1000. ,2);   // print as volts with 2 dec. places
   Serial.print(F("\r\n"));
-#if (USE_OLED)
-  oled.setCursor(1,5);
-  if(LoggingPeriod % 3600000 == 0) {  // display the averaging period in hours
-    oled.print(LoggingPeriod/3600000,DEC);
-    oled.print('h');
-  }else if(LoggingPeriod % 60000 == 0) {
-    oled.print(LoggingPeriod/60000,DEC); // display the averaging period in minutes
-    oled.print('m');
-  } else { // display the averaging period in seconds
-    oled.print(LoggingPeriod/1000,DEC);
-    oled.print('s');
-  }
-  oled.print(F(" avg: "));
-  oled.print((float) uSvLogged, 2);
-  oled.write(' ');
-  oledprint_P((const char *)pgm_read_word(&(unit_table[doseUnit])));  // print dose unit (uSv/h, uR/h, or mR/h) to serial
-  oled.clearToEOL();
-#endif
 }
 
 void fastAvgCount(unsigned long dcnt) {
@@ -411,6 +438,15 @@ void fastAvgCount(unsigned long dcnt) {
   fastAverage[fastArrayIndex++] = dcnt;
   if(fastArrayIndex >= FAST_ARRAY_MAX) {
     fastArrayIndex = 0;
+  }
+}
+
+void slowAvgCount(unsigned long dcnt) {
+  static byte slowArrayIndex = 0;
+
+  slowAverage[slowArrayIndex++] = dcnt;
+  if(slowArrayIndex >= SLOW_ARRAY_MAX) {
+    slowArrayIndex = 0;
   }
 }
 
@@ -671,4 +707,5 @@ static void cycleRGB() {
 void GetEvent(){   // ISR triggered for each new event (count)
   logCnt++;
   fastCnt++;
+  slowCnt++;
 }
