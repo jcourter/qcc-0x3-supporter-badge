@@ -303,6 +303,25 @@ void loop(){
 }
 
 void oledInit(){
+/*
+  oledInit() — Initialize OLED display hardware and clear screen
+
+  Prepares the OLED module for use by:
+    - Beginning I2C communication (via the display library)
+    - Setting display parameters such as font and orientation (if supported)
+    - Clearing the screen to ensure a fresh start
+
+  This function should be called once during `setup()` to configure the display 
+  before writing any content. Ensures that all subsequent OLED output routines 
+  (e.g., oledFastCount(), oledSlowCount(), oledUpdateFMInfo()) function correctly.
+
+  Note:
+    - Relies on the `oled` object being correctly defined and linked to the screen
+    - May vary depending on the display driver (e.g., SSD1306 or SH1106)
+
+  Tip:
+    If using low-power modes, re-init might be required after wake-up or reset.
+*/
 #if (USE_OLED)
   oled.begin(&Adafruit128x64, I2C_ADDRESS);
   oled.setFont(System5x7);
@@ -313,6 +332,15 @@ void oledInit(){
 }
 
 void oledFastCount(unsigned long fastAverage) {
+/*
+  Update the OLED display with the fast-moving dose rate.
+
+  Displays the calculated fast average radiation level (CPM converted to dose) 
+  along with its unit (e.g., µSv/h) on a specific OLED display row.
+
+  Parameters:
+    - fastAverage: Dose-equivalent CPM value, scaled and dead-time corrected
+*/  
   static unsigned long lastFastAverage = ULONG_MAX;
   if (fastAverage==lastFastAverage) return;
   else lastFastAverage=fastAverage;
@@ -337,6 +365,16 @@ void oledFastCount(unsigned long fastAverage) {
 }
 
 void oledSlowCount(unsigned long slowAverage) {
+/*
+  Display the current slow average (long-term dose rate) on the OLED.
+
+  This function checks whether the displayed value has changed to avoid unnecessary
+  redraws. It then prints the current average along with appropriate units and
+  the averaging time period (e.g., "60s avg: 0.11 uSv/h").
+
+  Parameters:
+    - slowAverage: Dose rate scaled to counts per minute, post-dead-time compensation
+*/
   static unsigned long lastSlowAverage = ULONG_MAX;
   if (slowAverage==lastSlowAverage) return;
   else lastSlowAverage=slowAverage;
@@ -361,6 +399,17 @@ void oledSlowCount(unsigned long slowAverage) {
 }
 
 void oledUpdateFMInfo (unsigned int freq, byte volume, byte rssi) {
+/*
+  Display FM radio status on the OLED.
+
+  Updates the OLED with current radio frequency, volume level, and signal strength (RSSI).
+  This provides real-time feedback when tuning or adjusting the FM module.
+
+  Parameters:
+    - freq: Frequency in tens of kHz (e.g., 8810 = 88.1 MHz)
+    - volume: Current audio volume (0–15)
+    - rssi: Received signal strength indicator (range varies by specific FM module, 30–110 typical)
+*/
 #if (USE_OLED)
   oled.setCursor(1,7);
   oled.print((int)freq/100);
@@ -377,15 +426,25 @@ void oledUpdateFMInfo (unsigned int freq, byte volume, byte rssi) {
 #endif
 }
 
-void Get_Settings(){ // get settings - the original kit stored these in the EEPROM but to simplify things for the badge, we'll just use values from QCCBadge.h
+void Get_Settings(){
+/*
+  Retrieve configuration settings from non-volatile memory and/or set variables to static #defined values (this is a holdover from the original kit and several of these were simplified from runtime settings to static values).
+
+  This function pulls user-selected options (e.g., LED mode, radio mode) 
+  that were previously saved. Settings may be loaded from EEPROM or other storage.
+
+  Initializes:
+    - doseRatio (conversion rate from CPM to the rad unit of choice, set up in QCCBadge.h)
+    - LoggingPeriod
+    - radioMode
+    - doseUnit (e.g., µSv/h, µR/h)
+*/
   doseRatio = PRI_RATIO;
 
   LoggingPeriod = LOGGING_PERIOD;
   LoggingPeriod *= 1000;                         // convert seconds to ms
 
   doseUnit = DOSE_uSV;          // default to uSv
-
-  logPeriodStart = 0;     // start logging timer
 
   radioMode=EEPROM.read(RADIO_MODE_ADDR);
   if (radioMode != RADIO_MODE_QCC && radioMode != RADIO_MODE_BCAST) {
@@ -395,6 +454,15 @@ void Get_Settings(){ // get settings - the original kit stored these in the EEPR
 }
 
 unsigned long getFastAvgCount() {
+/*
+  Calculate the total count over the fast average window.
+
+  This sums all values in `fastAverage[]` to produce the aggregate count over the
+  defined fast averaging period (e.g., 10 seconds). The result can be scaled to CPM.
+
+  Returns:
+    - Total count over `FAST_AVG_PERIOD`
+*/
   unsigned long tempSum = 0;
   for (int i = 0; i <= FAST_ARRAY_MAX-1; i++){ // sum up fast average counts
     tempSum = tempSum + (unsigned long)fastAverage[i];
@@ -403,6 +471,15 @@ unsigned long getFastAvgCount() {
 }
 
 unsigned long getSlowAvgCount() {
+/*
+  Calculate the total count over the slow average window.
+
+  This function returns the sum of all buckets in `slowAverage[]`, representing the
+  total counts across the `SLOW_AVG_PERIOD` window (e.g., 60 seconds).
+
+  Returns:
+    - Total count across all slow averaging buckets
+*/
   unsigned long tempSum = 0;
   for (int i = 0; i <= SLOW_ARRAY_MAX-1; i++){ // sum up slow average counts
     tempSum = tempSum + (unsigned long)slowAverage[i];
@@ -410,7 +487,20 @@ unsigned long getSlowAvgCount() {
   return tempSum;
 }
 
-void logCount(unsigned long lcnt){ // unlike logging sketch, just outputs to serial
+void logCount(unsigned long lcnt){
+/*
+  Output radiation logging data to serial.
+
+  Prints a comma-separated data row including:
+    - CPM (counts per minute)
+    - dose rate in selected units (e.g., µSv/h)
+    - battery voltage
+
+  Used by external tools to log radiation exposure over time or build dose graphs.
+
+  Parameters:
+    - lcnt: Total number of counts during the logging interval
+*/
   unsigned long logCPM;                 // log CPM
   unsigned long compensatedCPM;         // CPM after compensating for dead time
   float uSvLogged = 0.0;                // logging CPM converted to "unofficial" uSv
@@ -433,6 +523,22 @@ void logCount(unsigned long lcnt){ // unlike logging sketch, just outputs to ser
 }
 
 void fastAvgCount(unsigned long dcnt) {
+/*
+  Update the fast moving average bucket array.
+
+  This function stores the latest `dcnt` (count) into the `fastAverage[]` ring buffer.
+  It updates a static index that wraps back to zero when it reaches the end of the array.
+
+  Purpose:
+    - Tracks short-term activity (e.g., 10-second rolling window) for live responsiveness.
+    - Allows conversion to fast CPM estimate, updated frequently.
+
+  Parameters:
+    - dcnt: The number of counts accumulated during the fast averaging window (e.g., 200 ms)
+
+  Side Effects:
+    - Overwrites oldest entry in `fastAverage[]`
+*/
   static byte fastArrayIndex = 0;
 
   fastAverage[fastArrayIndex++] = dcnt;
@@ -442,6 +548,22 @@ void fastAvgCount(unsigned long dcnt) {
 }
 
 void slowAvgCount(unsigned long dcnt) {
+/*
+  Update the slow moving average bucket array.
+
+  This function stores the latest count into `slowAverage[]`, a circular buffer that
+  represents the slower, longer-term average (e.g., 1 minute over 12 buckets).
+
+  Purpose:
+    - Enables frequent refresh of long-term rate display (every ~5 seconds)
+    - Keeps memory footprint small while maintaining accurate trends
+
+  Parameters:
+    - dcnt: The number of counts detected during the current slow window slice
+
+  Side Effects:
+    - Rotates through `slowAverage[]` and replaces old values as time progresses
+*/
   static byte slowArrayIndex = 0;
 
   slowAverage[slowArrayIndex++] = dcnt;
@@ -451,6 +573,19 @@ void slowAvgCount(unsigned long dcnt) {
 }
 
 unsigned long readVcc() { // SecretVoltmeter from TinkerIt
+/*
+  Measure the system supply voltage (Vcc) using the internal reference.
+
+  Uses the ATmega’s internal 1.1 V bandgap to calculate actual supply voltage (in mV),
+  useful for battery monitoring without external hardware.
+
+  Returns:
+    - Vcc in millivolts (e.g., 5000 = 5.00 V)
+
+  Technique:
+    - Based on "Secret Voltmeter" from TinkerIt
+    - Uses ADC to measure internal reference and back-calculate Vcc
+*/
   unsigned long result;
   // Read 1.1V reference against AVcc
   ADMUX = _BV(REFS0) | _BV(MUX3) | _BV(MUX2) | _BV(MUX1);
@@ -463,22 +598,41 @@ unsigned long readVcc() { // SecretVoltmeter from TinkerIt
   return result;
 }
 
-// rolling your own map function saves a lot of memory
-unsigned long lmap(unsigned long x, unsigned long in_min, unsigned long in_max, unsigned long out_min, unsigned long out_max){
-  return x>in_max ? out_max : (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
-}
-
 static void CPStoRGB(unsigned long counts) {
+/*
+  CPStoRGB() — Map radiation event rate to RGB LED color
+
+  This function translates the current count rate (cps: counts per second)
+  into a corresponding color value for the onboard RGB LED.
+
+  Purpose:
+    - Provide a visual cue of radiation intensity: low rates glow blue/green, 
+      while higher rates transition to red/purple.
+    - Useful for at-a-glance awareness without requiring numerical display.
+
+  How it works:
+    - cps (counts per second) is normalized against RAD_SCALE_MAX_CPS.
+    - Based on the normalized value, red, green, and blue intensities are 
+      computed using a stepped or gradient color scheme.
+    - LED outputs are updated using PWM-capable pins.
+
+  Example Color Mapping (depends on implementation):
+    - Low cps (background): cool colors (blue/green)
+    - Medium cps: yellow/orange
+    - High cps (alert levels): red/magenta
+
+  Inputs:
+    - cps: Radiation activity in counts per second (float or int)
+
+  Side Effects:
+    - Updates global or hardware PWM outputs for the RGB LED
+*/
   unsigned char r, g, b;
   unsigned long scaleMax;
   unsigned int scaledCounts;
   float normalizedCounts;
 
   scaleMax = RAD_SCALE_MAX_CPS;   // Full magenta happens at this number of counts per second
-#if (DEBUG)
-  //Serial.print("rawcounts:");
-  //Serial.print(counts);
-#endif
   
   if (counts > scaleMax) counts=scaleMax;
   
@@ -488,19 +642,6 @@ static void CPStoRGB(unsigned long counts) {
   
   scaledCounts=(unsigned int)(normalizedCounts * 65534.0);
   getRGBFromSpectrum(scaledCounts, &r, &g, &b);
-
-#if (DEBUG)
-/*  Serial.print("counts:");
-  Serial.print(counts);
-  Serial.print(",scaledCounts:");
-  Serial.print(scaledCounts);
-  Serial.print(",r:");
-  Serial.print(r);
-  Serial.print(",g:");
-  Serial.print(g);
-  Serial.print(",b:");
-  Serial.println(b);*/
-#endif
 
   if (r!=lastR) {
     lastR=r;
@@ -515,72 +656,75 @@ static void CPStoRGB(unsigned long counts) {
     analogWrite(BLUE_LED_PIN,255-b);
   }
 }
+
+void getRGBFromSpectrum(unsigned int value, unsigned char *r, unsigned char *g, unsigned char *b) {
+/*
+  Maps a 16-bit value (0–65535) to an RGB color along a custom gradient spectrum.
+
+  If BGYRM_SPECTRUM is true, the gradient proceeds:
+    Blue → Green → Yellow → Red → Magenta
+    (4 regions)
+
+  Otherwise, it proceeds:
+    Green → Yellow → Red → Magenta
+    (3 regions)
+*/
+
+    if (value > 65535) value = 65535;
+
+    // Define regions dynamically based on selected spectrum mode
 #if (BGYRM_SPECTRUM)
-void getRGBFromSpectrum(unsigned int value, unsigned char *r, unsigned char *g, unsigned char *b) {
-    /*Given a value from 0 to 65535, this function maps the number to a color on a spectrum starting
-    with blue, changing to green, then progressing to yellow, then to red, and finally ending at magenta*/
-    // Clamp value to 0-65535
-    if (value > 65535) value = 65535;
-
-    // Determine the region (each range is 65536 / 4 = 16384)
-    unsigned int region = value / 16384;  // Total of 4 regions
-    unsigned int position = value % 16384;  // Position within the region
-
-    // Scale position to a 0-LED_MAX_INTENSITY range
-    unsigned char intensity = ((unsigned long)position * (unsigned long)LED_MAX_INTENSITY) / (unsigned long)16384;
-
-    // Calculate RGB based on region
-    if (region == 0) {  // Blue to green (increase green, decrease blue)
-        *r = 0;
-        *g = intensity;
-        *b = (LED_MAX_INTENSITY - intensity);
-    } else if (region == 1) {  // Green to Yellow (increase red)
-        *r = intensity;
-        *g = LED_MAX_INTENSITY;
-        *b = 0;
-    } else if (region == 2) {  // Yellow to Red (decrease green)
-        *r = LED_MAX_INTENSITY;
-        *g = (LED_MAX_INTENSITY - intensity);
-        *b = 0;
-    } else if (region == 3) {  // Red to Magenta (increase blue)
-        *r = LED_MAX_INTENSITY;
-        *g = 0;
-        *b = intensity;
-    }
-}
+    const unsigned int totalRegions = 4;
 #else
-void getRGBFromSpectrum(unsigned int value, unsigned char *r, unsigned char *g, unsigned char *b) {
-    /*Given a value from 0 to 65535, this function maps the number to a color on a spectrum starting
-    with green, then progressing to yellow, then to red, and finally ending at magenta*/
-    // Clamp value to 0-65535
-    if (value > 65535) value = 65535;
-
-    // Determine the region (each range is 65536 / 3 = 21845)
-    unsigned int region = value / 21845;  // Total of 3 regions
-    unsigned int position = value % 21845;  // Position within the region
-
-    // Scale position to a 0-LED_MAX_INTENSITY range
-    unsigned char intensity = ((unsigned long)position * (unsigned long)LED_MAX_INTENSITY) / (unsigned long)21845;
-
-    // Calculate RGB based on region
-    if (region == 0) {  // Green to Yellow (increase red)
-        *r = intensity;
-        *g = LED_MAX_INTENSITY;
-        *b = 0;
-    } else if (region == 1) {  // Yellow to Red (decrease green)
-        *r = LED_MAX_INTENSITY;
-        *g = (LED_MAX_INTENSITY - intensity);
-        *b = 0;
-    } else if (region == 2) {  // Red to Magenta (increase blue)
-        *r = LED_MAX_INTENSITY;
-        *g = 0;
-        *b = intensity;
-    }
-}
+    const unsigned int totalRegions = 3;
 #endif
 
+    unsigned int regionSize = 65536 / totalRegions;
+    unsigned int region = value / regionSize;
+    unsigned int position = value % regionSize;
+
+    unsigned char intensity = ((unsigned long)position * (unsigned long)LED_MAX_INTENSITY) / regionSize;
+
+    // Apply color blending based on region
+#if (!BGYRM_SPECTRUM)  // skip region 0 if BGYRM_SPECTRUM is false
+ region++;
+#endif
+    switch (region) {
+        case 0:  // Blue to Green
+            *r = 0;
+            *g = intensity;
+            *b = LED_MAX_INTENSITY - intensity;
+            break;
+        case 1:  // Green to Yellow
+            *r = intensity;
+            *g = LED_MAX_INTENSITY;
+            *b = 0;
+            break;
+        case 2:  // Yellow to Red
+            *r = LED_MAX_INTENSITY;
+            *g = LED_MAX_INTENSITY - intensity;
+            *b = 0;
+            break;
+        case 3:  // Red to Magenta
+        default:
+            *r = LED_MAX_INTENSITY;
+            *g = 0;
+            *b = intensity;
+            break;
+    }
+}
 
 void initMorseSender() {
+/*
+  initMorseSender() — Initialize Morse code transmission system
+
+  Core Responsibilities:
+    - Instantiate the appropriate MorseSender subclass (e.g., RFMorseSender)
+    - Assign the output pin to be modulated
+    - Set the transmission speed in words per minute (WPM)
+    - Prepare the output (e.g., configure pin modes, disable output initially via setReady)
+
+*/
   static boolean initFlag = false;
   // save timer 1 values
   TCCR1A_default = TCCR1A;
@@ -600,6 +744,12 @@ void initMorseSender() {
 } 
 
 void stopMorseSender() {
+/*
+  stopMorseSender() — Halt Morse transmission and clean up state
+
+  This function stops any ongoing Morse message in progress and ensures that
+  the output is turned off.
+*/
   TCCR1A = TCCR1A_default;
   TCCR1B = TCCR1B_default;
   OCR1A = OCR1A_default;
@@ -622,18 +772,22 @@ int AvailRam(){
   return freeValue;
 } 
 
-byte getLength(unsigned long number){
-  byte length = 0;
-  unsigned long t = 1;
-  do {
-    length++;
-    t*=10;
-  } 
-  while(t <= number);
-  return length;
-}
-
 byte readButton(int buttonPin) { // reads LOW ACTIVE push buttom and debounces
+/*
+  readButton() — Check and debounce button input
+
+  Reads the current state of the user button and applies a software debounce 
+  mechanism to avoid detecting multiple presses from mechanical bounce.
+
+  Common behavior:
+    - Returns true only once per actual press
+    - Ignores spurious toggles within DEBOUNCE_MS
+    - Typically called from loop() to detect mode changes or user input
+
+  Returns:
+    - true if a new button press has been detected
+    - false otherwise
+*/
   if (digitalRead(buttonPin)) return HIGH;    // still high, nothing happened, get out
   else {                                      // it's LOW - switch pushed
     delay(DEBOUNCE_MS);                       // wait for debounce period
@@ -652,7 +806,7 @@ static void serialprint_P(const char *text) {  // print a string from progmem to
 
 #if (USE_OLED)
 static void oledprint_P(const char *text) {  // print a string from progmem to the serial object
-  /* Usage: serialprint_P(pstring) or serialprint_P(pstring_table[5].  If the string 
+  /* Usage: oledprint_P(pstring) or oledprint_P(pstring_table[5].  If the string 
    table is stored in progmem and the index is a variable, the syntax is
    serialprint_P((const char *)pgm_read_word(&(pstring_table[index])))*/
   while (pgm_read_byte(text) != 0x00)
@@ -660,51 +814,24 @@ static void oledprint_P(const char *text) {  // print a string from progmem to t
 }
 #endif
 
-static void cycleRGB() {
-//This just runs the RGB LED through the spectrum defined in getRGBFromSpectrum()
-  unsigned char r, g, b;
-  static unsigned char lastR, lastG, lastB;
-
-  // Test the function with some example values
-
-  for (unsigned int i = 0; i < 65535; i++) {
-    getRGBFromSpectrum(i, &r, &g, &b);
-    if (r!=lastR) {
-      lastR=r;
-      analogWrite(RED_LED_PIN,255-r);
-    }
-    if (g!=lastG) {
-      lastG=g;
-      analogWrite(GREEN_LED_PIN, 255-g);
-    }
-    if (b!=lastB) {
-      lastB=b;
-      analogWrite(BLUE_LED_PIN,255-b);
-    }
-  }
-  for (unsigned int i = 65535; i > 0; i--) {
-    getRGBFromSpectrum(i, &r, &g, &b);
-    if (r!=lastR) {
-      lastR=r;
-      analogWrite(RED_LED_PIN,255-r);
-    }
-    if (g!=lastG) {
-      lastG=g;
-      analogWrite(GREEN_LED_PIN, 255-g);
-    }
-    if (b!=lastB) {
-      lastB=b;
-      analogWrite(BLUE_LED_PIN,255-b);
-    }
-  }
-}
-
-
 //----------------------------------------------------------------------------------------------+
 //                                        ISR
 //----------------------------------------------------------------------------------------------+
 
 void GetEvent(){   // ISR triggered for each new event (count)
+/*
+  Interrupt Service Routine (ISR) for incoming Geiger events.
+
+  This ISR is triggered on each detection pulse from the Geiger tube. It increments
+  three counters:
+    - logCnt: Used for periodic CSV logging
+    - fastCnt: Used for fast averaging
+    - slowCnt: Used for slow averaging
+
+  Note:
+    - Keep this ISR minimal to avoid timing disruptions.
+    - Counters are updated atomically as `volatile` globals.
+*/
   logCnt++;
   fastCnt++;
   slowCnt++;
