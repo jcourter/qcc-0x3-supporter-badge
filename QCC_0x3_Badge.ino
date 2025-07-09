@@ -237,7 +237,7 @@ void loop(){
     fastAverage = (float)fastAverage/(1.0-(float)fastAverage*((float)DEAD_TIME_uS/60000000.0));  // compensate for dead time (first converting the dead time to minutes)
     if (!cwTransmitEnabled) {
       if (ledMode==LED_RADIATION_MODE) {
-        CPStoRGB(fastAverage/60);  //Update the LED color based on the fast average count in counts per second
+        CPStoRGB((float)fastAverage/60.0);  //Update the LED color based on the fast average count in counts per second
       }
       oledFastCount(fastAverage);
     }
@@ -598,7 +598,7 @@ unsigned long readVcc() { // SecretVoltmeter from TinkerIt
   return result;
 }
 
-static void CPStoRGB(unsigned long counts) {
+static void CPStoRGB(float counts) {
 /*
   CPStoRGB() — Map radiation event rate to RGB LED color
 
@@ -631,16 +631,18 @@ static void CPStoRGB(unsigned long counts) {
   unsigned long scaleMax;
   unsigned int scaledCounts;
   float normalizedCounts;
+  float shapedCounts;
 
   scaleMax = RAD_SCALE_MAX_CPS;   // Full magenta happens at this number of counts per second
   
-  if (counts > scaleMax) counts=scaleMax;
-  
-  normalizedCounts=sqrt((float)counts/(float)scaleMax);
-
+  if (counts < 0) counts = 0;
+  normalizedCounts=counts/(float)scaleMax;
   if (normalizedCounts > 1.0) normalizedCounts=1.0;
-  
-  scaledCounts=(unsigned int)(normalizedCounts * 65534.0);
+
+  // apply a gamma adjustment that will stretch the low end of the spectrum
+  shapedCounts = pow(normalizedCounts, 0.42);  // gamma = 0.42
+
+  scaledCounts=(unsigned int)(shapedCounts * 65534.0);
   getRGBFromSpectrum(scaledCounts, &r, &g, &b);
 
   if (r!=lastR) {

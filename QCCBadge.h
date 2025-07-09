@@ -21,7 +21,7 @@
 //----------------------------------------------------------------------------------------------+
 //                                 other defines . . .
 //----------------------------------------------------------------------------------------------+
-#define BGYRM_SPECTRUM    false           // set to true for blue->green->yellow->red->magenta, set to false for green->yellow->red->magenta
+#define BGYRM_SPECTRUM      false       // set to true for blue->green->yellow->red->magenta, set to false for green->yellow->red->magenta
 #define LED_MAX_INTENSITY   255         // maximum intensity for the LED
 
 #define LED_RADIATION_MODE  0           //Show radiation level on the LED
