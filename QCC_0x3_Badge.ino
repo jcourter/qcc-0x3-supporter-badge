@@ -37,14 +37,14 @@
 #include <math.h>
 #include <Arduino.h>
 #include <EEPROM.h>
-#include <PinChangeInterrupt.h>
-#include <RDA5807.h> 
+#include <PinChangeInterrupt.h>  //PinChangeInterrupt by NicoHood
+#include <RDA5807.h>  //PU2CLR RDA5807 by Ricardo Lima
 #include <avr/wdt.h>
 #include <Wire.h>
 #include <limits.h>
+#include <SSD1306Ascii.h>  // SSD1306Ascii by Bill Greiman
+#include <SSD1306AsciiWire.h>
 #include "radioxmit.h"
-#include "SSD1306Ascii.h"
-#include "SSD1306AsciiWire.h"
 #include "QCCBadge.h"
 
 //----------------------------------------------------------------------------------------------+
