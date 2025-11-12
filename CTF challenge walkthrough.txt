@@ -1,0 +1,42 @@
+The CTF challenge is a callback to one of my favorite movies for this time of year, "A Christmas Story."  In the movie, young Ralphie is eagerly waiting for his decoder ring to arrive in the mail, with which he can finally decode the secret messages aired during his favorite radio show, "Little Orphan Annie."  The movie is set in 1940, and the 1940 edition of the ring is plainly visible in the movie.
+
+Challenge part 1: Find the signal containing the secret message
+
+To activate the morse code transmitter in the badge, you press SW2 and SW3 simultaneously, which will cause the RGB LED to turn solid red.  The transmitter is literally nothing but a square wave from one of the pins on the microcontroller, relying on the fact that a square wave is nothing but a sine wave with all its harmonics stacked on top.  You can find the signal easily using an SDR with the badge in close proximity to the antenna (the signal is pretty weak).  The strongest signals are usually somewhere between 60 and 70MHz, but you can find them all over the spectrum up until about 100MHz, where they start to fall off in strength pretty rapidly.
+
+Alternately, you can monitor the output pin using an oscilloscope with a recording function (or use your phone to take a video) and transcribe the morse code that way.
+
+Challenge part 2: Decode the signal
+
+As I mentioned, the signal is morse code.  There are a couple of good ways to decode it.  In the SDR waterfall display, you will clearly see dots and dashes, so you could just transcribe these to paper and manually decode them.  You could decode by ear if you know morse code.  You could also use an app on your phone or computer to do the decoding, though these tend to be a little finicky and you'll want to decode multiple times to ensure you are getting a clean decode.
+
+You could also have skipped both of the above steps by dumping the firmware from the MCU - it was not read protected, and the two round badge versions included unmarked ICSP headers, making access to the MCU easy.  The kit version and the supporter badge also had socketed MCUs, making removal easy.  I even had some USBASP programmers sitting in the hardware hacking village along with the necessary cables available for someone to use.  :)
+
+Challenge part 3: Analyze and decrypt the message
+
+Once decoded, you should have had this message:
+
+"    KA KA KA set your pins to b2 i i set your pins to b2  BT  17 19 1 1 13 26 8 20 22 26 14 13 12 14 19 9 6 9 8 11 1 20 14 15 1 10 8 13 6 22 14 19 20 14 2 1 18 19 15 1 20 14 6 15 8 13 11 22 14 19 15 14 21 25 9 20 8 13 1 SK"
+
+For reference, KA (usually written with an overline, but this is plain text I'm working with), i i, BT, and SK are morse code prosigns that mean attention, repeat, break, and end of message, respectively.  The phrase "set your pins to b2" is our first important clue.  If you look that up in a search engine, you should realize both the movie reference and that we are dealing with a Little Orphan Annie decoder ring.  In hindsight, I could have made this a little easier by making the message "set your pins to b 2" with an added space, because the search results for that are much clearer.
+
+Now that you know this info, the next logical guess would be that I'm using the exact ring used in the movie, given the clear reference.  From there, it's pretty easy to find that the specific ring in question is the 1940 one.  As it turns out, there is an incredibly detailed writeup on these decoders, complete with the ciphers for every year they were made, at https://www.mattblaze.org/blog/badges.
+
+Using that as a reference, we can make a quick ASCII text version of our decoder ring:
+
+1  2  3  4  5  6  7  8  9  10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 
+A  C  E  B  G  H  F  D  J  I  L  M  K  W  N  O  R  P  Q  S  U  T  V  Y  Z  X
+
+Now combining that with the instruction to set the pin to B-2, we rotate the numbers to get:
+
+25 26 1  2  3  4  5  6  7  8  9  10 11 12 13 14 15 16 17 18 19 20 21 22 23 24
+A  C  E  B  G  H  F  D  J  I  L  M  K  W  N  O  R  P  Q  S  U  T  V  Y  Z  X
+
+And now, let's decode the message:
+
+17 19 1 1 13 26 8 20 22 26 14 13 12 14 19 9 6 9 8 11 1 20 14 15 1 10 8 13 6 22 14 19 20 14 2 1 18 19 15 1 20 14 6 15 8 13 11 22 14 19 15 14 21 25 9 20 8 13 1 
+Q  U  E E N  C  I T  Y  C  O  N  W  O  U  L D L I K  E T  O  R  E M  I N  D Y  O  U  T  O  B E S  U  R  E T  O  D R  I N  K  Y  O  U  R  O  V  A  L T  I N  E
+
+or... QUEEN CITY CON WOULD LIKE TO REMIND YOU TO BE SURE TO DRINK YOUR OVALTINE
+
+That's it, a crummy commercial.  See you next year!
